@@ -7,9 +7,9 @@ phantom = require('phantom')
 reconnectInterval = false
 if process.env.HUBOT_OUTLOOK_RECONNECT
   reconnectInterval = parseInt process.env.HUBOT_OUTLOOK_RECONNECT
-  if reconnectInterval < 600000
-    console.error "HUBOT_OUTLOOK_RECONNECT is the adapter reconnect interval in milliseconds! "
-    console.error "Minimum reconnect interval is 10 minutes (value 600000)"
+  if reconnectInterval < 10
+    console.error "HUBOT_OUTLOOK_RECONNECT is the adapter reconnect interval in minutes!"
+    console.error "Minimum reconnect interval is 10 minutes!"
     process.exit 1
 
 
@@ -22,8 +22,8 @@ class Outlook extends Adapter
       self.emit 'connected'
       self.robot.logger.info 'Outlook adapter connected!'
     if reconnectInterval
-      setInterval ( -> self.reconnect()), reconnectInterval
-      @robot.logger.info "Outlook adapter configured to reconnect every #{reconnectInterval} ms"
+      setInterval ( -> self.reconnect()), reconnectInterval * 60 * 1000
+      @robot.logger.info "Outlook adapter configured to reconnect every #{reconnectInterval} minutes"
 
 
   reconnect: ->
