@@ -3,7 +3,49 @@ phantom = require('phantom')
 {Adapter, TextMessage, User} = require 'hubot'
 
 
+# Configuration
+reconnectInterval = false
+if process.env.HUBOT_OUTLOOK_RECONNECT
+  reconnectInterval = parseInt process.env.HUBOT_OUTLOOK_RECONNECT
+  if reconnectInterval < 600000
+    console.error "HUBOT_OUTLOOK_RECONNECT is the adapter reconnect interval in milliseconds! "
+    console.error "Minimum reconnect interval is 10 minutes (value 600000)"
+    process.exit 1
+
+
 class Outlook extends Adapter
+
+
+  run: ->
+    self = @
+    @connect ->
+      self.emit 'connected'
+      self.robot.logger.info 'Outlook adapter connected!'
+    if reconnectInterval
+      setInterval ( -> self.reconnect()), reconnectInterval
+      @robot.logger.info "Outlook adapter configured to reconnect every #{reconnectInterval} ms"
+
+
+  reconnect: ->
+    self = @
+    @oldPhantom = @phantom
+    @connect ->
+      self.oldPhantom.exit 0
+      delete self.oldPhantom
+      self.emit 'reconnected'
+      self.robot.logger.info 'Outlook adapter re-connected!'
+
+
+  close: () ->
+    @phantom.exit 0
+    delete @phantom
+    try
+      if @oldPhantom
+        @oldPhantom.exit 0
+        delete @oldPhantom
+    catch err
+      @robot.logger.error "Unable to kill old phantom (during reconnecting): #{err}\n#{err.stack}"
+
 
   reply: (envelope, strings...) ->
     # Only prefix replies in group chats
@@ -14,7 +56,8 @@ class Outlook extends Adapter
       @robot.logger.debug 'reply: replying in personal chat ' + envelope.user.room
     @send envelope, strings...
 
-  run: ->
+
+  connect: (callback) ->
     self = @
     phantom.create (ph) ->
       self.phantom = ph
@@ -78,14 +121,9 @@ class Outlook extends Adapter
                 sendMessage room, msg for msg in strings
               ), (->), envelope.room, strings
 
-            self.emit 'connected'
+            callback()
 
           ), 10000
-
-  shutdown: () ->
-    @phantom.exit 0
-    @robot.shutdown()
-    process.exit 0
 
 
 exports.use = (robot) ->
